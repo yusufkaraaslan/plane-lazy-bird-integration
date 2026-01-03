@@ -1,6 +1,20 @@
 # Plane Lazy-Bird Integration
 
+**Status:** ✅ **Production Ready (v2.0)** - Django Integration Package
+**Repository:** [plane-lazy-bird-integration](https://github.com/yusufkaraaslan/plane-lazy-bird-integration)
+**Core Engine:** [lazy-bird](https://github.com/yusufkaraaslan/lazy-bird)
+
 Django package to integrate Lazy-Bird automation with Plane project management.
+
+## 🏗️ Architecture
+
+This is the **Plane.so integration layer** for Lazy-Bird, separated from the core engine as part of the v2.0 microservice architecture:
+
+- **lazy-bird** (Core Engine) - FastAPI + PostgreSQL + Celery
+- **lazy-bird-ui** (Web UI) - React + TypeScript + Vite
+- **plane-lazy-bird-integration** (This Repo) - Django package for Plane
+
+This package connects Plane.so to the lazy-bird REST API using Django signals and webhooks.
 
 ## Features
 
