@@ -65,5 +65,5 @@ class TriggerTaskSerializer(serializers.Serializer):
 class TestConnectionSerializer(serializers.Serializer):
     """Write-only serializer for testing Lazy-Bird API connection."""
 
-    api_url = serializers.URLField(required=False, allow_blank=True)
+    api_url = serializers.CharField(required=False, allow_blank=True)
     api_key = serializers.CharField(required=False, allow_blank=True)

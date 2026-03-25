@@ -127,7 +127,7 @@ class TriggerTaskView(APIView):
         except Exception as e:
             logger.exception("Failed to queue task for issue %s", issue_id)
             return Response(
-                {"error": f"Lazy-Bird API error: {e}"},
+                {"error": f"Lazy-Bird API error: {type(e).__name__}: {str(e)}"},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
