@@ -24,6 +24,7 @@ packages = [{include = "plane_lazy_bird"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 django = "^4.2"
+djangorestframework = "^3.14.0"
 httpx = "^0.25.0"
 python-dotenv = "^1.0.0"
 
