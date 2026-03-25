@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from plane_lazy_bird.client import verify_webhook_signature
-from plane_lazy_bird.models import TaskRunMapping
+from plane_lazy_bird.models import AutomationConfig, TaskRunMapping
 
 logger = logging.getLogger(__name__)
 
@@ -96,17 +96,30 @@ def _handle_task_completed(payload: dict) -> None:
     mapping.save(update_fields=["status", "pr_url", "pr_number", "updated_at"])
     logger.info("Task completed: %s (PR: %s)", mapping.task_run_id, mapping.pr_url)
 
-    # Issue state update and comment will be implemented in issues #18/#19
+    # Update Plane issue state to "In Review" and add comment
+    _update_plane_issue_state(mapping, "review")
+    pr_text = f"PR: {mapping.pr_url}" if mapping.pr_url else "No PR created"
+    _add_plane_issue_comment(
+        mapping,
+        f"Lazy-Bird task completed successfully. {pr_text}",
+    )
 
 
 def _handle_task_failed(payload: dict) -> None:
-    """Update mapping when task fails."""
+    """Update mapping and Plane issue when task fails."""
     data = payload.get("data", {})
     mapping = TaskRunMapping.objects.get(task_run_id=payload["task_run_id"])
     mapping.status = "failed"
     mapping.error_message = data.get("error_message", "")
     mapping.save(update_fields=["status", "error_message", "updated_at"])
     logger.info("Task failed: %s", mapping.task_run_id)
+
+    # Add failure comment to Plane issue
+    error_text = mapping.error_message or "Unknown error"
+    _add_plane_issue_comment(
+        mapping,
+        f"Lazy-Bird task failed: {error_text}",
+    )
 
 
 def _handle_task_cancelled(payload: dict) -> None:
@@ -125,3 +138,79 @@ def _handle_pr_created(payload: dict) -> None:
     mapping.pr_number = data.get("pr_number")
     mapping.save(update_fields=["pr_url", "pr_number", "updated_at"])
     logger.info("PR created for task: %s (PR: %s)", mapping.task_run_id, mapping.pr_url)
+
+
+def _get_plane_model(app_label: str, model_name: str):
+    """Dynamically import a Plane model. Returns None if not available."""
+    try:
+        from django.apps import apps
+        return apps.get_model(app_label, model_name)
+    except LookupError:
+        return None
+
+
+def _update_plane_issue_state(mapping: TaskRunMapping, state_type: str) -> None:
+    """Update a Plane issue's state based on the AutomationConfig.
+
+    state_type: "in_progress", "review", or "ready"
+    """
+    try:
+        config = AutomationConfig.objects.get(project_id=mapping.project_id)
+    except AutomationConfig.DoesNotExist:
+        logger.warning("No AutomationConfig for project %s — cannot update issue state", mapping.project_id)
+        return
+
+    state_name_map = {
+        "in_progress": config.in_progress_state_name,
+        "review": config.review_state_name,
+        "ready": config.ready_state_name,
+    }
+    target_state_name = state_name_map.get(state_type)
+    if not target_state_name:
+        logger.warning("Unknown state_type: %s", state_type)
+        return
+
+    Issue = _get_plane_model("db", "Issue")
+    State = _get_plane_model("db", "State")
+
+    if Issue is None or State is None:
+        logger.debug("Plane models not available — skipping issue state update")
+        return
+
+    try:
+        issue = Issue.objects.get(id=mapping.issue_id)
+        new_state = State.objects.get(
+            project_id=mapping.project_id,
+            name=target_state_name,
+        )
+        issue._lazy_bird_updating = True
+        try:
+            issue.state = new_state
+            issue.save(update_fields=["state"])
+        finally:
+            issue._lazy_bird_updating = False
+
+        logger.info("Updated issue %s state to '%s'", mapping.issue_id, target_state_name)
+    except (Issue.DoesNotExist, State.DoesNotExist) as e:
+        logger.warning("Could not update issue state: %s", e)
+    except Exception:
+        logger.exception("Error updating issue %s state", mapping.issue_id)
+
+
+def _add_plane_issue_comment(mapping: TaskRunMapping, text: str) -> None:
+    """Add a comment to a Plane issue. Fails gracefully if Plane is not available."""
+    IssueComment = _get_plane_model("db", "IssueComment")
+    if IssueComment is None:
+        logger.debug("Plane IssueComment model not available — skipping comment")
+        return
+
+    try:
+        IssueComment.objects.create(
+            issue_id=mapping.issue_id,
+            project_id=mapping.project_id,
+            comment_html=f"<p>{text}</p>",
+            comment_stripped=text,
+        )
+        logger.info("Added comment to issue %s: %s", mapping.issue_id, text[:80])
+    except Exception:
+        logger.exception("Error adding comment to issue %s", mapping.issue_id)

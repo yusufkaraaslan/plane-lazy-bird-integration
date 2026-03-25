@@ -4,11 +4,12 @@ import hashlib
 import hmac
 import json
 import uuid
+from unittest.mock import patch
 
 import pytest
 from django.test import Client
 
-from plane_lazy_bird.models import TaskRunMapping
+from plane_lazy_bird.models import AutomationConfig, TaskRunMapping
 
 
 def _sign(payload: bytes, secret: str) -> str:
@@ -142,3 +143,47 @@ class TestWebhookReceiver:
         assert response2.status_code == 200
         self.mapping.refresh_from_db()
         assert self.mapping.status == "success"
+
+    def test_task_completed_calls_state_update(self):
+        """task.completed should attempt to update Plane issue state."""
+        AutomationConfig.objects.create(
+            project_id=self.mapping.project_id,
+            lazy_bird_project_id=uuid.uuid4(),
+            enabled=True,
+        )
+        with patch("plane_lazy_bird.webhooks._get_plane_model", return_value=None):
+            response = self._post_webhook({
+                "event": "task.completed",
+                "task_run_id": str(self.task_run_id),
+                "data": {"pr_url": "https://github.com/org/repo/pull/5", "pr_number": 5},
+            })
+        assert response.status_code == 200
+        self.mapping.refresh_from_db()
+        assert self.mapping.status == "success"
+
+    def test_task_failed_adds_comment_attempt(self):
+        """task.failed should attempt to add a comment to the Plane issue."""
+        with patch("plane_lazy_bird.webhooks._add_plane_issue_comment") as mock_comment:
+            response = self._post_webhook({
+                "event": "task.failed",
+                "task_run_id": str(self.task_run_id),
+                "data": {"error_message": "Build failed"},
+            })
+        assert response.status_code == 200
+        mock_comment.assert_called_once()
+        args = mock_comment.call_args[0]
+        assert "Build failed" in args[1]
+
+    def test_task_completed_adds_pr_comment(self):
+        """task.completed should attempt to add a PR link comment."""
+        with patch("plane_lazy_bird.webhooks._add_plane_issue_comment") as mock_comment, \
+             patch("plane_lazy_bird.webhooks._update_plane_issue_state"):
+            response = self._post_webhook({
+                "event": "task.completed",
+                "task_run_id": str(self.task_run_id),
+                "data": {"pr_url": "https://github.com/org/repo/pull/10", "pr_number": 10},
+            })
+        assert response.status_code == 200
+        mock_comment.assert_called_once()
+        args = mock_comment.call_args[0]
+        assert "https://github.com/org/repo/pull/10" in args[1]
