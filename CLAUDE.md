@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Type:** Django package (Python library)
 **Purpose:** Integration layer between Plane.so project management and Lazy-Bird automation engine
-**Status:** Core implementation complete — 41 tests passing, ready for integration testing with Docker Plane
+**Status:** Phase 2 complete — 67 tests passing (2 skipped), 71% coverage, DRF REST API ready
 **Package name:** `plane-lazy-bird` (PyPI: `plane-lazy-bird-integration`)
 
 Part of Lazy-Bird's v2.0 microservice architecture:
@@ -50,21 +50,22 @@ Coverage is auto-configured in pyproject.toml (`--cov=plane_lazy_bird --cov-repo
 **Test settings:** `tests/settings.py` (DJANGO_SETTINGS_MODULE configured in pyproject.toml)
 **Python:** 3.10+ (3.10, 3.11, 3.12)
 **Django:** 4.2+
+**DRF:** 3.14+
 **Line length:** 100 (Black)
 **Type checking:** mypy strict (`disallow_untyped_defs = true`)
 
 ## Architecture
 
-The package connects Plane.so to the lazy-bird REST API using Django signals and webhooks.
+The package connects Plane.so to the lazy-bird REST API using Django signals, webhooks, and a DRF REST API.
 
 ### Core flow:
 1. User moves Plane issue to "Ready" state
-2. `post_save` signal fires → `on_issue_save()` in `signals.py`
+2. `post_save` signal fires -> `on_issue_save()` in `signals.py`
 3. Checks: automation enabled, state matches, no duplicate active tasks
-4. Queues task via async httpx client → `POST /api/v1/task-runs`
+4. Queues task via async httpx client -> `POST /api/v1/task-runs`
 5. Creates `TaskRunMapping` to track the relationship
 6. Updates issue state to "In Progress"
-7. Lazy-Bird sends webhook on completion → `webhooks.py` receiver
+7. Lazy-Bird sends webhook on completion -> `webhooks.py` receiver
 8. Updates mapping, issue state to "In Review", adds comment with PR link
 
 ### Module summary:
@@ -72,16 +73,30 @@ The package connects Plane.so to the lazy-bird REST API using Django signals and
 - `models.py` — `AutomationConfig` (project mapping, state names) + `TaskRunMapping` (issue-to-task, status, PR details)
 - `signals.py` — `post_save` handler with duplicate detection, recursive-save guard, async bridging via `sync_to_async`
 - `webhooks.py` — HMAC-verified receiver for 5 events (task.started/completed/failed/cancelled, pr.created) + Plane issue state updates + comments
+- `serializers.py` — DRF serializers: `AutomationConfigSerializer`, `TaskRunMappingSerializer`, `TriggerTaskSerializer`, `TestConnectionSerializer`
+- `permissions.py` — `IsPlaneAuthenticated` permission class (wraps Plane auth, fallback for tests via `LAZY_BIRD_ALLOW_UNAUTHENTICATED`)
+- `api.py` — 7 DRF APIView classes for REST API endpoints
 - `admin.py` — Django admin for both models
-- `urls.py` — `/lazy-bird/` webhook endpoint
+- `urls.py` — Webhook + 7 API routes
 - `management/commands/lazy_bird_setup_webhook.py` — Registers webhook subscription in Lazy-Bird
 
-### Lazy-Bird API endpoints used:
-- `POST /api/v1/task-runs` — Queue task (requires `project_id`, `work_item_id`, `prompt`)
+### REST API endpoints (served by `api.py`):
+- `GET /lazy-bird/config/<project_id>/` — Get automation config
+- `POST /lazy-bird/config/<project_id>/` — Upsert automation config
+- `POST /lazy-bird/config/test-connection/` — Test Lazy-Bird API connectivity
+- `GET /lazy-bird/issues/<issue_id>/tasks/` — List task runs for an issue
+- `POST /lazy-bird/issues/<issue_id>/tasks/trigger/` — Manually trigger a task (requires `project_id`, `prompt`)
+- `GET /lazy-bird/issues/<issue_id>/tasks/<task_id>/status/` — Proxy task status from Lazy-Bird
+- `GET /lazy-bird/issues/<issue_id>/tasks/<task_id>/logs/` — Proxy task logs from Lazy-Bird
+- `POST /lazy-bird/issues/<issue_id>/tasks/<task_id>/cancel/` — Cancel a task
+
+### Lazy-Bird API endpoints consumed (by `client.py`):
+- `POST /api/v1/task-runs` — Queue task
 - `GET /api/v1/task-runs/{id}` — Get task status
 - `POST /api/v1/task-runs/{id}/cancel` — Cancel task
 - `POST /api/v1/task-runs/{id}/retry` — Retry failed task
 - `GET /api/v1/task-runs/{id}/logs` — Get logs (paginated)
+- `GET /api/v1/health` — Health check
 - `POST /api/v1/webhooks` — Register webhook subscription
 
 ### Plane model dependencies (loaded dynamically):
@@ -92,8 +107,10 @@ The package connects Plane.so to the lazy-bird REST API using Django signals and
 ### Key design patterns:
 - Plane models loaded dynamically via `apps.get_model("db", "Model")` — gracefully returns None in tests
 - `_lazy_bird_updating` flag on issue prevents recursive signal loops
-- `sync_to_async` wraps ORM calls inside `_queue_task_for_issue` coroutine
-- `_run_async()` bridges sync Django signals to async client (detects ASGI vs WSGI)
+- `sync_to_async` wraps ORM calls inside async coroutines
+- `async_to_sync` (from asgiref) bridges async client methods into sync DRF views
+- `IsPlaneAuthenticated` permission checks `request.user.is_authenticated`; bypassed in tests via `LAZY_BIRD_ALLOW_UNAUTHENTICATED = True`
+- Proxy endpoints (status, logs, cancel) call Lazy-Bird API and opportunistically sync local TaskRunMapping status
 
 ### Environment variables:
 ```bash
@@ -104,6 +121,6 @@ LAZY_BIRD_WEBHOOK_SECRET=whsec_your_webhook_secret
 
 ## Planning Documents
 
-- `IMPLEMENTATION.md` - 3-day implementation plan with task checklist
-- `DEEP_INTEGRATION_PLAN.md` - Phase 2/3 plans for REST API endpoints and React UI components in Plane
+- `IMPLEMENTATION.md` - Phase 1 implementation plan (complete)
+- `DEEP_INTEGRATION_PLAN.md` - Phase 3 plans for React UI components in Plane
 - `DEV_WORKFLOW.md` - Git branching strategy and multi-instance coordination
