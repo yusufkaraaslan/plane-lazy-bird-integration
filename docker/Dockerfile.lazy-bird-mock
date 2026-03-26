@@ -1,0 +1,13 @@
+# Lightweight mock of the Lazy-Bird API for integration testing.
+# Returns canned responses for all endpoints consumed by plane_lazy_bird.
+
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir fastapi uvicorn[standard]
+
+COPY docker/lazy_bird_mock.py /app/lazy_bird_mock.py
+
+WORKDIR /app
+EXPOSE 9000
+
+CMD ["uvicorn", "lazy_bird_mock:app", "--host", "0.0.0.0", "--port", "9000"]

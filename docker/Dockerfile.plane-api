@@ -1,0 +1,24 @@
+# Extends Plane's official backend image with plane_lazy_bird installed.
+#
+# This installs our Django package into Plane's Python environment and patches
+# Plane's settings to include plane_lazy_bird in INSTALLED_APPS and URL routing.
+
+FROM makeplane/plane-backend:latest
+
+# Install our package into Plane's environment
+COPY pyproject.toml poetry.lock README.md /tmp/plane-lazy-bird/
+COPY plane_lazy_bird/ /tmp/plane-lazy-bird/plane_lazy_bird/
+RUN pip install --no-deps /tmp/plane-lazy-bird/ && \
+    rm -rf /tmp/plane-lazy-bird/
+
+# Patch Plane settings to load our app
+COPY docker/plane_settings_patch.py /tmp/plane_settings_patch.py
+RUN python /tmp/plane_settings_patch.py && \
+    rm /tmp/plane_settings_patch.py
+
+# Entrypoint: run migrations then start the API server
+COPY docker/entrypoint-plane-api.sh /entrypoint-plane-api.sh
+RUN chmod +x /entrypoint-plane-api.sh
+
+EXPOSE 8000
+ENTRYPOINT ["/entrypoint-plane-api.sh"]

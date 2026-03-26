@@ -1,0 +1,22 @@
+# Runs integration tests against the live Plane + Lazy-Bird mock stack.
+# Integration test files will be created in issues #34-36.
+
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install our package with test dependencies
+COPY pyproject.toml poetry.lock README.md ./
+COPY plane_lazy_bird/ ./plane_lazy_bird/
+COPY tests/ ./tests/
+
+# Install poetry and project dependencies
+RUN pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-interaction
+
+CMD ["pytest", "tests/", "-v", "--tb=short"]
