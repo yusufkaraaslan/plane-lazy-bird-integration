@@ -6,13 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Type:** Django package (Python library)
 **Purpose:** Integration layer between Plane.so project management and Lazy-Bird automation engine
-**Status:** Phase 2 complete — 67 tests passing (2 skipped), 71% coverage, DRF REST API ready
+**Status:** Phase 3 complete — 107 tests passing (5 skipped), 71% coverage, Docker test env, Plane UI components
 **Package name:** `plane-lazy-bird` (PyPI: `plane-lazy-bird-integration`)
 
 Part of Lazy-Bird's v2.0 microservice architecture:
 - **lazy-bird** (Core Engine) - FastAPI + PostgreSQL + Celery
 - **lazy-bird-ui** (Web UI) - React + TypeScript + Vite
 - **plane-lazy-bird-integration** (This Repo) - Django package for Plane
+- **yusufkaraaslan/plane** (Fork, branch `feat/lazy-bird-integration`) - React UI components in Plane
 
 ## Development Commands
 
@@ -119,8 +120,31 @@ LAZY_BIRD_API_KEY=lb_live_your_api_key_here
 LAZY_BIRD_WEBHOOK_SECRET=whsec_your_webhook_secret
 ```
 
+### Docker test environment (`docker/`):
+- `docker-compose.test.yml` — 5 services: plane-db, plane-redis, plane-api, lazy-bird-mock, test-runner
+- `Dockerfile.plane-api` — Extends `makeplane/plane-backend` with our package
+- `Dockerfile.lazy-bird-mock` — FastAPI mock of Lazy-Bird API
+- `Dockerfile.test-runner` — Runs pytest integration tests
+- `lazy_bird_mock.py` — Mock server implementing all 7 Lazy-Bird API endpoints
+- `plane_settings_patch.py` — Build-time settings patcher
+- `setup-test-env.sh` — Local setup script (clone Plane, patch, install, migrate, seed)
+- `entrypoint-plane-api.sh` — Plane API startup with migrations
+
+### Integration tests (`tests/integration/`):
+- `test_signal_flow.py` — 7 tests: full signal flow, prompt construction, duplicate detection, requeue, API failure
+- `test_webhook_flow.py` — 9 tests: all webhook events, lifecycle, signature validation, idempotency
+- `test_api_auth.py` — 24 tests: all 8 endpoints with auth/unauth, CRUD, proxy, cancel
+
+### Plane fork components (`yusufkaraaslan/plane:feat/lazy-bird-integration`):
+- `apps/web/ce/components/lazy-bird/` — types.ts, api.ts, index.ts, task-panel.tsx, settings.tsx, task-logs-modal.tsx, trigger-task-modal.tsx, task-status-badge.tsx
+- `apps/web/ce/components/issues/issue-detail-widgets/collapsibles.tsx` — Wires LazyBirdTaskPanel into issue sidebar
+- `apps/web/app/.../lazy-bird/page.tsx` + `header.tsx` — Settings route
+- `apps/api/plane/settings/common.py` — INSTALLED_APPS + env vars
+- `apps/api/plane/urls.py` — URL routing
+- `apps/api/requirements/base.txt` — Package dependency
+
 ## Planning Documents
 
 - `IMPLEMENTATION.md` - Phase 1 implementation plan (complete)
-- `DEEP_INTEGRATION_PLAN.md` - Phase 3 plans for React UI components in Plane
+- `DEEP_INTEGRATION_PLAN.md` - Phase 3 plans for React UI components in Plane (complete)
 - `DEV_WORKFLOW.md` - Git branching strategy and multi-instance coordination
