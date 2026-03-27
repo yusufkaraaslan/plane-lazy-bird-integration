@@ -9,7 +9,10 @@ class AutomationConfigSerializer(serializers.ModelSerializer):
     """Serializer for AutomationConfig (read/write).
 
     project_id is set from the URL, not the request body.
+    api_key is masked in responses (write-only for the full value).
     """
+
+    api_key_masked = serializers.SerializerMethodField()
 
     class Meta:
         model = AutomationConfig
@@ -21,10 +24,25 @@ class AutomationConfigSerializer(serializers.ModelSerializer):
             "ready_state_name",
             "in_progress_state_name",
             "review_state_name",
+            "api_url",
+            "api_key",
+            "api_key_masked",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "project_id", "created_at", "updated_at"]
+        read_only_fields = ["id", "project_id", "api_key_masked", "created_at", "updated_at"]
+        extra_kwargs = {
+            "api_key": {"write_only": True},
+        }
+
+    def get_api_key_masked(self, obj: AutomationConfig) -> str:
+        """Return masked API key (e.g., 'lb_***...key') or empty string."""
+        key = obj.api_key
+        if not key:
+            return ""
+        if len(key) <= 6:
+            return "***"
+        return f"{key[:3]}***{key[-3:]}"
 
 
 class TaskRunMappingSerializer(serializers.ModelSerializer):

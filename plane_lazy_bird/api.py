@@ -13,7 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from plane_lazy_bird.client import LazyBirdClient, lazy_bird_client
+from plane_lazy_bird.client import LazyBirdClient, get_client_for_project, lazy_bird_client
 from plane_lazy_bird.models import AutomationConfig, TaskRunMapping
 from plane_lazy_bird.serializers import (
     AutomationConfigSerializer,
@@ -115,9 +115,10 @@ class TriggerTaskView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # Queue task via async client
+        # Queue task via project-specific or global client
+        client = get_client_for_project(project_id)
         try:
-            result = async_to_sync(lazy_bird_client.queue_task)(
+            result = async_to_sync(client.queue_task)(
                 project_id=config.lazy_bird_project_id,
                 work_item_id=str(issue_id),
                 prompt=data["prompt"],
@@ -157,8 +158,9 @@ class TaskStatusView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        client = get_client_for_project(mapping.project_id)
         try:
-            result = async_to_sync(lazy_bird_client.get_task_status)(mapping.task_run_id)
+            result = async_to_sync(client.get_task_status)(mapping.task_run_id)
         except Exception as e:
             logger.exception("Failed to get task status from Lazy-Bird")
             return Response(
@@ -191,8 +193,9 @@ class TaskLogsView(APIView):
         page_size = int(request.query_params.get("page_size", 100))
         level = request.query_params.get("level")
 
+        client = get_client_for_project(mapping.project_id)
         try:
-            result = async_to_sync(lazy_bird_client.get_task_logs)(
+            result = async_to_sync(client.get_task_logs)(
                 mapping.task_run_id,
                 page=page,
                 page_size=page_size,
@@ -226,8 +229,9 @@ class CancelTaskView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        client = get_client_for_project(mapping.project_id)
         try:
-            async_to_sync(lazy_bird_client.cancel_task)(mapping.task_run_id)
+            async_to_sync(client.cancel_task)(mapping.task_run_id)
         except Exception as e:
             logger.exception("Failed to cancel task in Lazy-Bird")
             return Response(

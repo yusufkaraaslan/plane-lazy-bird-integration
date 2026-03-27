@@ -217,7 +217,7 @@ class TestAPIEndpointsAuthenticated:
             "status": "queued",
         }
 
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = authenticated_client.post(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/trigger/"),
                 {
@@ -261,7 +261,7 @@ class TestAPIEndpointsAuthenticated:
             "status": "running",
         }
 
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = authenticated_client.get(
                 _url(f"lazy-bird/issues/{mapping.issue_id}/tasks/{mapping.id}/status/")
             )
@@ -285,7 +285,7 @@ class TestAPIEndpointsAuthenticated:
             "total": 1,
         }
 
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = authenticated_client.get(
                 _url(f"lazy-bird/issues/{mapping.issue_id}/tasks/{mapping.id}/logs/")
             )
@@ -305,7 +305,7 @@ class TestAPIEndpointsAuthenticated:
         mock_client = AsyncMock()
         mock_client.cancel_task.return_value = {"status": "cancelled"}
 
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = authenticated_client.post(
                 _url(f"lazy-bird/issues/{mapping.issue_id}/tasks/{mapping.id}/cancel/")
             )

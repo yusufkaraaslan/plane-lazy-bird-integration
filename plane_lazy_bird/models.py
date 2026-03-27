@@ -28,6 +28,17 @@ class AutomationConfig(models.Model):
         max_length=100,
         default="In Review",
     )
+    api_url = models.URLField(
+        blank=True,
+        default="",
+        help_text="Per-project Lazy-Bird API URL (overrides LAZY_BIRD_API_URL env var when set)",
+    )
+    api_key = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Per-project API key (overrides LAZY_BIRD_API_KEY env var when set)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -128,7 +128,9 @@ def on_issue_save(sender: Any, instance: Any, created: bool, **kwargs: Any) -> N
 
 async def _queue_task_for_issue(issue: Any, config: AutomationConfig) -> None:
     """Queue a task in Lazy-Bird and create the mapping record."""
-    from plane_lazy_bird.client import lazy_bird_client
+    from plane_lazy_bird.client import get_client_for_project
+
+    lazy_bird_client = get_client_for_project(config.project_id)
 
     try:
         # Build prompt from issue details

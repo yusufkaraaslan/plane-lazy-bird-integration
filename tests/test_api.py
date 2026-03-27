@@ -206,7 +206,7 @@ class TestTriggerTaskAPI:
         mock_client = AsyncMock()
         mock_client.queue_task.return_value = {"id": str(task_run_id), "status": "queued"}
 
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = api_client.post(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/trigger/"),
                 {"project_id": str(config.project_id), "prompt": "Implement feature X"},
@@ -266,7 +266,7 @@ class TestTaskStatusAPI:
             "id": str(mapping.task_run_id),
             "status": "running",
         }
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = api_client.get(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/{mapping.id}/status/")
             )
@@ -280,7 +280,7 @@ class TestTaskStatusAPI:
         )
         mock_client = AsyncMock()
         mock_client.get_task_status.return_value = {"status": "success"}
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             api_client.get(_url(f"lazy-bird/issues/{issue_id}/tasks/{mapping.id}/status/"))
         mapping.refresh_from_db()
         assert mapping.status == "success"
@@ -304,7 +304,7 @@ class TestTaskLogsAPI:
         )
         mock_client = AsyncMock()
         mock_client.get_task_logs.return_value = {"items": [], "total": 0}
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = api_client.get(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/{mapping.id}/logs/")
             )
@@ -318,7 +318,7 @@ class TestTaskLogsAPI:
         )
         mock_client = AsyncMock()
         mock_client.get_task_logs.return_value = {"items": [], "total": 0}
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             api_client.get(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/{mapping.id}/logs/"),
                 {"page": "2", "page_size": "50", "level": "ERROR"},
@@ -346,7 +346,7 @@ class TestCancelTaskAPI:
         )
         mock_client = AsyncMock()
         mock_client.cancel_task.return_value = {"status": "cancelled"}
-        with patch("plane_lazy_bird.api.lazy_bird_client", mock_client):
+        with patch("plane_lazy_bird.api.get_client_for_project", return_value=mock_client):
             response = api_client.post(
                 _url(f"lazy-bird/issues/{issue_id}/tasks/{mapping.id}/cancel/")
             )

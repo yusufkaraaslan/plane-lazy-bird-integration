@@ -195,3 +195,25 @@ def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> boo
 
 # Module-level singleton, lazily configured from Django settings
 lazy_bird_client = LazyBirdClient()
+
+
+def get_client_for_project(project_id: UUID) -> LazyBirdClient:
+    """Return a LazyBirdClient configured for the project.
+
+    If the project's AutomationConfig has per-project api_url or api_key set,
+    returns a new client with those overrides. Otherwise returns the global singleton.
+    """
+    try:
+        from plane_lazy_bird.models import AutomationConfig
+
+        config = AutomationConfig.objects.get(project_id=project_id)
+        if config.api_url or config.api_key:
+            return LazyBirdClient(
+                base_url=config.api_url or None,
+                api_key=config.api_key or None,
+            )
+    except AutomationConfig.DoesNotExist:
+        pass
+    except Exception:
+        logger.warning("Failed to get project-specific client for %s, using global", project_id)
+    return lazy_bird_client
