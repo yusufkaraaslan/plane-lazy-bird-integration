@@ -17,6 +17,7 @@ from plane_lazy_bird.client import LazyBirdClient, lazy_bird_client
 from plane_lazy_bird.models import AutomationConfig, TaskRunMapping
 from plane_lazy_bird.serializers import (
     AutomationConfigSerializer,
+    BatchTaskStatusSerializer,
     TaskRunMappingSerializer,
     TestConnectionSerializer,
     TriggerTaskSerializer,
@@ -237,3 +238,38 @@ class CancelTaskView(APIView):
         mapping.status = "cancelled"
         mapping.save(update_fields=["status", "updated_at"])
         return Response(TaskRunMappingSerializer(mapping).data)
+
+
+class BatchTaskStatusView(APIView):
+    """POST to get latest task status for multiple issues at once.
+
+    Avoids N+1 API calls when rendering issue list views with TaskStatusBadge.
+    Accepts up to 100 issue IDs and returns the latest TaskRunMapping for each.
+    """
+
+    def post(self, request: Request) -> Response:
+        serializer = BatchTaskStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        issue_ids = serializer.validated_data["issue_ids"]
+
+        # Get the latest mapping per issue (most recent by created_at)
+        from django.db.models import Subquery, OuterRef
+
+        latest_ids = (
+            TaskRunMapping.objects.filter(
+                issue_id=OuterRef("issue_id"),
+                issue_id__in=issue_ids,
+            )
+            .order_by("-created_at")
+            .values("id")[:1]
+        )
+        mappings = TaskRunMapping.objects.filter(
+            issue_id__in=issue_ids,
+            id__in=Subquery(latest_ids),
+        )
+
+        result = {}
+        for mapping in mappings:
+            result[str(mapping.issue_id)] = TaskRunMappingSerializer(mapping).data
+
+        return Response(result)

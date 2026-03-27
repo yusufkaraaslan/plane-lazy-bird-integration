@@ -62,6 +62,17 @@ class TriggerTaskSerializer(serializers.Serializer):
     metadata = serializers.DictField(required=False, allow_null=True, default=None)
 
 
+class BatchTaskStatusSerializer(serializers.Serializer):
+    """Serializer for batch task status request."""
+
+    issue_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=100,
+        help_text="List of issue UUIDs to fetch latest task status for",
+    )
+
+
 class TestConnectionSerializer(serializers.Serializer):
     """Write-only serializer for testing Lazy-Bird API connection."""
 

@@ -376,3 +376,71 @@ class TestCancelTaskAPI:
     )
     def test_cancel_api_failure(self, api_client, project_id):
         pass  # Covered by integration tests against real Lazy-Bird instance
+
+
+# --- BatchTaskStatusView tests ---
+
+
+@pytest.mark.django_db
+class TestBatchTaskStatusAPI:
+    def test_batch_returns_latest_per_issue(self, api_client, project_id):
+        issue1 = uuid.uuid4()
+        issue2 = uuid.uuid4()
+        # issue1 has 2 mappings — should return the latest
+        TaskRunMapping.objects.create(
+            issue_id=issue1, project_id=project_id, task_run_id=uuid.uuid4(), status="success"
+        )
+        TaskRunMapping.objects.create(
+            issue_id=issue1, project_id=project_id, task_run_id=uuid.uuid4(), status="running"
+        )
+        # issue2 has 1 mapping
+        TaskRunMapping.objects.create(
+            issue_id=issue2, project_id=project_id, task_run_id=uuid.uuid4(), status="queued"
+        )
+
+        response = api_client.post(
+            _url("lazy-bird/issues/batch-status/"),
+            {"issue_ids": [str(issue1), str(issue2)]},
+        )
+        assert response.status_code == 200
+        assert str(issue1) in response.data
+        assert str(issue2) in response.data
+        assert response.data[str(issue1)]["status"] == "running"
+        assert response.data[str(issue2)]["status"] == "queued"
+
+    def test_batch_empty_for_unknown_issues(self, api_client):
+        response = api_client.post(
+            _url("lazy-bird/issues/batch-status/"),
+            {"issue_ids": [str(uuid.uuid4()), str(uuid.uuid4())]},
+        )
+        assert response.status_code == 200
+        assert response.data == {}
+
+    def test_batch_mixed_known_unknown(self, api_client, project_id):
+        known_issue = uuid.uuid4()
+        unknown_issue = uuid.uuid4()
+        TaskRunMapping.objects.create(
+            issue_id=known_issue, project_id=project_id, task_run_id=uuid.uuid4(), status="success"
+        )
+
+        response = api_client.post(
+            _url("lazy-bird/issues/batch-status/"),
+            {"issue_ids": [str(known_issue), str(unknown_issue)]},
+        )
+        assert response.status_code == 200
+        assert str(known_issue) in response.data
+        assert str(unknown_issue) not in response.data
+
+    def test_batch_validates_empty_list(self, api_client):
+        response = api_client.post(
+            _url("lazy-bird/issues/batch-status/"),
+            {"issue_ids": []},
+        )
+        assert response.status_code == 400
+
+    def test_batch_validates_missing_field(self, api_client):
+        response = api_client.post(
+            _url("lazy-bird/issues/batch-status/"),
+            {},
+        )
+        assert response.status_code == 400
