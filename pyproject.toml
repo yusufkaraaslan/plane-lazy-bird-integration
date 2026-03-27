@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plane-lazy-bird"
-version = "0.1.0"
+version = "0.2.0"
 description = "Plane integration for Lazy-Bird automation"
 authors = ["Lazy-Bird Development Team"]
 license = "MIT"
@@ -9,7 +9,7 @@ homepage = "https://github.com/yusufkaraaslan/plane-lazy-bird-integration"
 repository = "https://github.com/yusufkaraaslan/plane-lazy-bird-integration"
 keywords = ["lazy-bird", "plane", "automation", "django"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
