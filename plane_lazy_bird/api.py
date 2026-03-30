@@ -26,11 +26,23 @@ from plane_lazy_bird.serializers import (
 logger = logging.getLogger(__name__)
 
 
+def _get_session_auth():
+    """Get Plane's BaseSessionAuthentication if available, else fallback."""
+    try:
+        from plane.authentication.session import BaseSessionAuthentication
+
+        return [BaseSessionAuthentication]
+    except ImportError:
+        return []
+
+
 # --- Configuration endpoints ---
 
 
 class AutomationConfigView(APIView):
     """GET/POST automation config for a project (upsert on POST)."""
+
+    authentication_classes = _get_session_auth()
 
     def get(self, request: Request, project_id: UUID) -> Response:
         try:
@@ -57,6 +69,8 @@ class AutomationConfigView(APIView):
 class TestConnectionView(APIView):
     """POST to test connectivity to Lazy-Bird API."""
 
+    authentication_classes = _get_session_auth()
+
     def post(self, request: Request) -> Response:
         serializer = TestConnectionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -80,6 +94,8 @@ class TestConnectionView(APIView):
 class TaskRunListView(APIView):
     """GET list of task runs for an issue."""
 
+    authentication_classes = _get_session_auth()
+
     def get(self, request: Request, issue_id: UUID) -> Response:
         mappings = TaskRunMapping.objects.filter(issue_id=issue_id).order_by("-created_at")
         return Response(TaskRunMappingSerializer(mappings, many=True).data)
@@ -87,6 +103,8 @@ class TaskRunListView(APIView):
 
 class TriggerTaskView(APIView):
     """POST to manually trigger a Lazy-Bird task for an issue."""
+
+    authentication_classes = _get_session_auth()
 
     def post(self, request: Request, issue_id: UUID) -> Response:
         serializer = TriggerTaskSerializer(data=request.data)
@@ -149,6 +167,8 @@ class TriggerTaskView(APIView):
 class TaskStatusView(APIView):
     """GET task status (proxied from Lazy-Bird API)."""
 
+    authentication_classes = _get_session_auth()
+
     def get(self, request: Request, issue_id: UUID, task_id: UUID) -> Response:
         try:
             mapping = TaskRunMapping.objects.get(id=task_id, issue_id=issue_id)
@@ -179,6 +199,8 @@ class TaskStatusView(APIView):
 
 class TaskLogsView(APIView):
     """GET task logs (proxied from Lazy-Bird API)."""
+
+    authentication_classes = _get_session_auth()
 
     def get(self, request: Request, issue_id: UUID, task_id: UUID) -> Response:
         try:
@@ -213,6 +235,8 @@ class TaskLogsView(APIView):
 
 class CancelTaskView(APIView):
     """POST to cancel a task run."""
+
+    authentication_classes = _get_session_auth()
 
     def post(self, request: Request, issue_id: UUID, task_id: UUID) -> Response:
         try:
@@ -250,6 +274,8 @@ class BatchTaskStatusView(APIView):
     Avoids N+1 API calls when rendering issue list views with TaskStatusBadge.
     Accepts up to 100 issue IDs and returns the latest TaskRunMapping for each.
     """
+
+    authentication_classes = _get_session_auth()
 
     def post(self, request: Request) -> Response:
         serializer = BatchTaskStatusSerializer(data=request.data)
